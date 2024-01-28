@@ -1,5 +1,5 @@
 bl_info = {  
-    "name": "Red Halo Tools",  
+    "name": "RedHalo Tools",  
     "author": "Red Halo Studio",  
     "version": (0, 1, 2),  
     "blender": (2, 80, 0),  
@@ -81,7 +81,8 @@ class REDHALO_OT_Adjust_Light_Distance(Operator):
         return context.object and context.object.type == 'LIGHT'
     
     def execute(self, context):
-        lights = [obj for obj in bpy.data.objects if obj.type == 'LIGHT']
+        # lights = [obj for obj in bpy.data.objects if obj.type == 'LIGHT']
+        lights = [obj for obj in bpy.context.selected_objects if obj.type == 'LIGHT']
         for light in lights:
             light.data.cutoff_distance = self.value / 100.0
         return {'FINISHED'}
@@ -301,8 +302,7 @@ class REDHALO_OT_Filter_Operator(Operator):
     bl_idname = "redhalo_tools.filter_op"
     bl_label = "Filter Objects"
 
-    def get_items(self, context):
-        
+    def get_items(self, context):        
         types = ["all", "mesh", "curve", "surf", "meta", "font", "pointcloud", "volume", "grease_pencil", "armature", "lattice", "empty", "light", "light_probe", "camera", "speaker"]
 
         return [(ob, "", "") for ob in types]
@@ -365,11 +365,48 @@ class REDHALO_PT_menu_filterselect(Panel):
         layout.operator("redhalo_tools.filter_op", text="Light Probe", icon="LIGHTPROBE_GRID").action = "light_probe"
         layout.operator("redhalo_tools.filter_op", text="Speaker", icon="SPEAKER").action = "speaker"
 
-
 def REDHALO_MT_Filter_Menu(self, context):
     if bpy.context.mode == "OBJECT":
         op_text = "F : " + bpy.context.scene.filter_option.capitalize()
         self.layout.popover("REDHALO_PT_menu_filterselect", text = op_text, icon = "PLUS")
+
+class REDHALO_MT_PIE_Filter(Menu):
+    bl_idname = "REDHALO_MT_select_mode_pie_filter"
+    bl_label = "RedHalo Filter Select"
+
+    def draw(self, context):
+        layout = self.layout
+        pie = layout.menu_pie()
+        # operator_enum will just spread all available options
+        # for the type enum of the operator on the pie
+        pie.operator("redhalo_tools.filter_op", text="Mesh", icon="MESH_CUBE").action = "mesh"
+        pie.operator("redhalo_tools.filter_op", text="Camera", icon="CAMERA_DATA").action = "camera"
+        # BOTTOM
+        pie.menu(REDHALO_MT_PIE_FilterOther.bl_idname, text="Others", icon="PREFERENCES")           
+        
+        pie.operator("redhalo_tools.filter_op", text="All", icon="ALIGN_JUSTIFY").action = "all"
+        pie.operator("redhalo_tools.filter_op", text="Light", icon="LIGHT").action = "light"
+        pie.operator("redhalo_tools.filter_op", text="Curve", icon="CURVE_DATA").action = "curve"
+        pie.operator("redhalo_tools.filter_op", text="Font", icon="FONT_DATA").action = "font"
+        pie.operator("redhalo_tools.filter_op", text="Empty", icon="EMPTY_DATA").action = "empty"  
+
+class REDHALO_MT_PIE_FilterOther(Menu):
+    bl_idname = "REDHALO_MT_menu_filterselect_other"
+    bl_label = "Filter Select (other)"
+    
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("redhalo_tools.filter_op", text="Surface", icon="SURFACE_DATA").action = "surf"
+        # layout.operator("redhalo_tools.filter_op", text="Hair", icon="STRANDS").action = "hair"
+        layout.operator("redhalo_tools.filter_op", text="Point Cloud", icon="POINTCLOUD_DATA").action = "pointcloud"
+        layout.operator("redhalo_tools.filter_op", text="Meta", icon="META_DATA").action = "meta"
+        layout.operator("redhalo_tools.filter_op", text="Volume", icon="SNAP_VOLUME").action = "volume"
+        layout.operator("redhalo_tools.filter_op", text="Grease Pencil", icon="GREASEPENCIL").action = "grease_pencil"
+        layout.operator("redhalo_tools.filter_op", text="Armature", icon="ARMATURE_DATA").action = "armature"
+        layout.operator("redhalo_tools.filter_op", text="Lattice", icon="LATTICE_DATA").action = "lattice"
+
+        layout.operator("redhalo_tools.filter_op", text="Light Probe", icon="OUTLINER_OB_LIGHTPROBE").action = "light_probe"
+        layout.operator("redhalo_tools.filter_op", text="Speaker", icon="SPEAKER").action = "speaker"
 
 #
 # UI Panel
@@ -400,36 +437,34 @@ classes = (
     #Filter Menu
     REDHALO_PT_menu_filterselect,
     REDHALO_OT_Filter_Operator,
+    REDHALO_MT_PIE_Filter,
+    REDHALO_MT_PIE_FilterOther
 )
+
+addon_keymaps = []
 
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-
-    bpy.types.VIEW3D_HT_header.append(REDHALO_MT_Filter_Menu)
-    # bpy.types.VIEW3D_MT_editor_menus.append(REDHALO_MT_Filter_Menu)
-    wm = bpy.context.window_manager
-    km = wm.keyconfigs.addon.keymaps.new(name = 'Object Mode')
-    kmi = km.keymap_items.new('redhalo_tools.filter_op', 'F', 'PRESS', alt=True)
-    kmi.active = True
-
-def unregister():
-    bpy.types.VIEW3D_HT_header.remove(REDHALO_MT_Filter_Menu)
-
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-
-    addon_keymaps = []
+    # bpy.types.VIEW3D_HT_header.append(REDHALO_MT_Filter_Menu)
     
     wm = bpy.context.window_manager
-
     if wm.keyconfigs.addon:
-        for km in addon_keymaps:
-            for kmi in km.keymap_items:
-                km.keymap_items.remove(kmi)
+            km = wm.keyconfigs.addon.keymaps.new(name='Object Mode')
+            kmi = km.keymap_items.new('wm.call_menu_pie', 'F', 'PRESS', alt = True)
+            kmi.properties.name = "REDHALO_MT_select_mode_pie_filter"
+            addon_keymaps.append((km, kmi))
 
-            wm.keyconfigs.addon.keymaps.remove(km)
-
+def unregister():
+    # bpy.types.VIEW3D_HT_header.remove(REDHALO_MT_Filter_Menu)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+    
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        for km, kmi in addon_keymaps:
+            km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
 if __name__ == "__main__":
